@@ -1,294 +1,480 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
+
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    content="width=device-width, initial-scale=1.0"
   >
 
-  <title>My Wallet</title>
+  <title>Secure Wallet</title>
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
     rel="stylesheet"
+    href="style.css"
   >
 
-  <link rel="stylesheet" href="style.css">
 </head>
+
 
 <body>
 
-  <!-- PAYMENT LOADING SCREEN -->
-  <section id="paymentLoading" class="loading-screen hidden">
-    <div class="loading-card">
+  <main class="app">
 
-      <div class="loading-icon">
-        <div class="spinner"></div>
-      </div>
+    <!-- ========================= -->
+    <!-- WALLET HEADER -->
+    <!-- ========================= -->
 
-      <div class="loading-badge">SECURE PAYMENT</div>
+    <section class="wallet-card">
 
-      <h1 id="loadingTitle">Preparing your payment</h1>
-
-      <div class="loading-amount" id="loadingAmount">
-        ₹0.00
-      </div>
-
-      <p id="loadingText">
-        Connecting securely to the payment gateway...
-      </p>
-
-      <div class="progress-track">
-        <div id="progressBar" class="progress-bar"></div>
-      </div>
-
-      <div class="loading-steps">
-
-        <div id="step1" class="loading-step active">
-          <span class="step-dot"></span>
-          <span>Creating payment request</span>
-        </div>
-
-        <div id="step2" class="loading-step">
-          <span class="step-dot"></span>
-          <span>Connecting to gateway</span>
-        </div>
-
-        <div id="step3" class="loading-step">
-          <span class="step-dot"></span>
-          <span>Redirecting securely</span>
-        </div>
-
-      </div>
-
-      <div class="loading-note">
-        Please don't close this page.
-      </div>
-
-      <div id="loadingError" class="loading-error hidden"></div>
-
-      <button
-        id="loadingBackButton"
-        class="secondary-button hidden"
-        type="button"
-      >
-        Back to Wallet
-      </button>
-
-    </div>
-  </section>
-
-
-  <!-- MAIN WALLET -->
-  <main id="walletPage" class="page">
-
-    <header class="topbar">
-
-      <div class="brand">
-        <div class="brand-logo">₹</div>
+      <div class="wallet-top">
 
         <div>
-          <div class="brand-name">My Wallet</div>
-          <div class="brand-subtitle">Payment dashboard</div>
-        </div>
-      </div>
 
-      <button
-        id="refreshButton"
-        class="refresh-button"
-        type="button"
-        aria-label="Refresh"
-      >
-        ↻
-      </button>
+          <p class="eyebrow">
+            SECURE WALLET
+          </p>
 
-    </header>
+          <h1>
+            My Wallet
+          </h1>
 
-
-    <!-- BALANCE -->
-    <section class="balance-card">
-
-      <div class="balance-top">
-        <span>Total successful amount</span>
-
-        <span class="live-indicator">
-          <i></i>
-          Live
-        </span>
-      </div>
-
-      <div id="totalBalance" class="balance-amount">
-        ₹0.00
-      </div>
-
-      <div class="balance-footer">
-        <span id="successCount">0 successful payments</span>
-        <span id="lastUpdated">Updated just now</span>
-      </div>
-
-    </section>
-
-
-    <!-- GENERATE LINK -->
-    <section class="section-card">
-
-      <div class="section-heading">
-        <div>
-          <h2>Create payment link</h2>
-          <p>Enter any amount and generate a shareable link.</p>
-        </div>
-
-        <div class="section-icon">↗</div>
-      </div>
-
-      <form id="linkForm">
-
-        <label for="amountInput">Payment amount</label>
-
-        <div class="amount-input-wrap">
-          <span>₹</span>
-
-          <input
-            id="amountInput"
-            type="number"
-            inputmode="decimal"
-            min="1"
-            max="100000"
-            step="0.01"
-            placeholder="Enter amount"
-            autocomplete="off"
-            required
-          >
-        </div>
-
-        <button class="primary-button" type="submit">
-          Generate Payment Link
-          <span>→</span>
-        </button>
-
-      </form>
-
-
-      <div id="generatedLinkBox" class="generated-link hidden">
-
-        <div class="generated-label">
-          Your payment link
-        </div>
-
-        <div class="link-row">
-
-          <div id="generatedLinkText" class="link-text">
-            —
-          </div>
-
-          <button
-            id="copyGeneratedLink"
-            class="copy-button"
-            type="button"
-          >
-            Copy
-          </button>
-
-        </div>
-
-        <div id="copyMessage" class="copy-message"></div>
-
-      </div>
-
-    </section>
-
-
-    <!-- QUICK AMOUNTS -->
-    <section class="section-card">
-
-      <div class="section-heading compact">
-        <div>
-          <h2>Quick payments</h2>
-          <p>Generate a payment instantly.</p>
-        </div>
-      </div>
-
-      <div class="quick-grid">
-
-        <button class="quick-amount" data-amount="100">
-          <span>₹100</span>
-          <small>Pay now</small>
-        </button>
-
-        <button class="quick-amount" data-amount="200">
-          <span>₹200</span>
-          <small>Pay now</small>
-        </button>
-
-        <button class="quick-amount" data-amount="300">
-          <span>₹300</span>
-          <small>Pay now</small>
-        </button>
-
-        <button class="quick-amount" data-amount="400">
-          <span>₹400</span>
-          <small>Pay now</small>
-        </button>
-
-        <button class="quick-amount" data-amount="500">
-          <span>₹500</span>
-          <small>Pay now</small>
-        </button>
-
-      </div>
-
-    </section>
-
-
-    <!-- TRANSACTIONS -->
-    <section class="transactions-section">
-
-      <div class="transactions-heading">
-
-        <div>
-          <h2>Transactions</h2>
-          <p>Payment activity and current status.</p>
-        </div>
-
-        <span id="transactionCount" class="transaction-count">
-          0
-        </span>
-
-      </div>
-
-
-      <div id="transactionsList" class="transactions-list">
-
-        <div class="empty-state">
-
-          <div class="empty-icon">₹</div>
-
-          <h3>No transactions yet</h3>
-
-          <p>
-            Payments created from this wallet will appear here.
+          <p class="muted">
+            Manage your payments securely
           </p>
 
         </div>
 
       </div>
 
+
+      <div class="balance-box">
+
+        <span>
+          Available Balance
+        </span>
+
+        <strong id="balance">
+          ₹0.00
+        </strong>
+
+      </div>
+
+
+      <div class="stats">
+
+        <div>
+          <span>Total Deposits</span>
+          <strong id="totalDeposits">
+            ₹0.00
+          </strong>
+        </div>
+
+        <div>
+          <span>Withdrawn</span>
+          <strong id="totalWithdrawals">
+            ₹0.00
+          </strong>
+        </div>
+
+      </div>
+
     </section>
 
 
-    <footer class="footer">
-      <span>Secure payment wallet</span>
-      <span>•</span>
-      <span>Powered by WatchPays</span>
-    </footer>
+    <!-- ========================= -->
+    <!-- ADD MONEY -->
+    <!-- ========================= -->
+
+    <section class="card">
+
+      <div class="section-heading">
+
+        <div>
+
+          <h2>
+            Add Money
+          </h2>
+
+          <p>
+            Select an amount to continue
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="paymentList"
+        class="payment-list"
+      >
+
+        <div class="payment-row">
+
+          <div class="amount">
+            ₹100
+          </div>
+
+          <button
+            onclick="createPayment(100)"
+            class="primary-btn"
+          >
+            Pay
+          </button>
+
+          <button
+            onclick="copyPaymentLink(100)"
+            class="secondary-btn"
+          >
+            Copy
+          </button>
+
+        </div>
+
+
+        <div class="payment-row">
+
+          <div class="amount">
+            ₹200
+          </div>
+
+          <button
+            onclick="createPayment(200)"
+            class="primary-btn"
+          >
+            Pay
+          </button>
+
+          <button
+            onclick="copyPaymentLink(200)"
+            class="secondary-btn"
+          >
+            Copy
+          </button>
+
+        </div>
+
+
+        <div class="payment-row">
+
+          <div class="amount">
+            ₹300
+          </div>
+
+          <button
+            onclick="createPayment(300)"
+            class="primary-btn"
+          >
+            Pay
+          </button>
+
+          <button
+            onclick="copyPaymentLink(300)"
+            class="secondary-btn"
+          >
+            Copy
+          </button>
+
+        </div>
+
+
+        <div class="payment-row">
+
+          <div class="amount">
+            ₹400
+          </div>
+
+          <button
+            onclick="createPayment(400)"
+            class="primary-btn"
+          >
+            Pay
+          </button>
+
+          <button
+            onclick="copyPaymentLink(400)"
+            class="secondary-btn"
+          >
+            Copy
+          </button>
+
+        </div>
+
+
+        <div class="payment-row">
+
+          <div class="amount">
+            ₹500
+          </div>
+
+          <button
+            onclick="createPayment(500)"
+            class="primary-btn"
+          >
+            Pay
+          </button>
+
+          <button
+            onclick="copyPaymentLink(500)"
+            class="secondary-btn"
+          >
+            Copy
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ========================= -->
+    <!-- WITHDRAW -->
+    <!-- ========================= -->
+
+    <section class="card">
+
+      <div class="section-heading">
+
+        <div>
+
+          <h2>
+            Withdraw Money
+          </h2>
+
+          <p>
+            Withdraw your wallet balance to your bank
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <form
+        id="withdrawForm"
+        onsubmit="submitWithdrawal(event)"
+      >
+
+        <label>
+          Amount
+        </label>
+
+        <input
+          id="withdrawAmount"
+          type="number"
+          min="1"
+          step="0.01"
+          placeholder="Enter amount"
+          required
+        >
+
+
+        <label>
+          Account Holder Name
+        </label>
+
+        <input
+          id="accountName"
+          type="text"
+          placeholder="Rahul Kumar"
+          required
+        >
+
+
+        <label>
+          Bank Account Number
+        </label>
+
+        <input
+          id="accountNumber"
+          type="text"
+          inputmode="numeric"
+          placeholder="Enter account number"
+          required
+        >
+
+
+        <label>
+          IFSC Code
+        </label>
+
+        <input
+          id="ifsc"
+          type="text"
+          placeholder="HDFC0001234"
+          maxlength="11"
+          required
+        >
+
+
+        <label>
+          Bank Name
+        </label>
+
+        <input
+          id="bankName"
+          type="text"
+          placeholder="HDFC Bank"
+          required
+        >
+
+
+        <button
+          id="withdrawButton"
+          type="submit"
+          class="withdraw-btn"
+        >
+          Withdraw Money
+        </button>
+
+      </form>
+
+
+      <div
+        id="withdrawMessage"
+        class="message"
+      ></div>
+
+    </section>
+
+
+    <!-- ========================= -->
+    <!-- DEPOSIT TRANSACTIONS -->
+    <!-- ========================= -->
+
+    <section class="card">
+
+      <div class="section-heading">
+
+        <div>
+
+          <h2>
+            Deposit Transactions
+          </h2>
+
+          <p>
+            Your payment history
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="transactions"
+        class="transaction-list"
+      >
+
+        <div class="empty">
+          Loading...
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ========================= -->
+    <!-- WITHDRAWAL HISTORY -->
+    <!-- ========================= -->
+
+    <section class="card">
+
+      <div class="section-heading">
+
+        <div>
+
+          <h2>
+            Withdrawal History
+          </h2>
+
+          <p>
+            Track your bank withdrawals
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div
+        id="withdrawals"
+        class="transaction-list"
+      >
+
+        <div class="empty">
+          Loading...
+        </div>
+
+      </div>
+
+    </section>
 
   </main>
+
+
+  <!-- ========================= -->
+  <!-- PAYMENT LOADING -->
+  <!-- ========================= -->
+
+  <div
+    id="loadingScreen"
+    class="loading-screen hidden"
+  >
+
+    <div class="loader-card">
+
+      <div class="loader"></div>
+
+      <p class="eyebrow">
+        SECURE PAYMENT
+      </p>
+
+      <h2>
+        Preparing your payment
+      </h2>
+
+      <p id="loadingAmount">
+        ₹0.00
+      </p>
+
+      <div class="progress">
+        <div id="progressBar"></div>
+      </div>
+
+      <div class="loading-steps">
+
+        <div id="step1">
+          ○ Creating payment request
+        </div>
+
+        <div id="step2">
+          ○ Connecting to gateway
+        </div>
+
+        <div id="step3">
+          ○ Redirecting securely
+        </div>
+
+      </div>
+
+      <small>
+        Please don't close this page.
+      </small>
+
+    </div>
+
+  </div>
 
 
   <script src="script.js"></script>
 
 </body>
+
 </html>
