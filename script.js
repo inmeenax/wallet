@@ -1,1134 +1,726 @@
-const WATCHPAYS_CREATE_URL =
-  "https://api.watchpays.com/v1/create";
+const WORKER_BASE =
+  "https://watchpays-api1.moxoga3282.workers.dev";
 
-const FRONTEND_URL =
+const CREATE_PAYMENT_URL =
+  `${WORKER_BASE}/create-payment`;
+
+const TRANSACTIONS_URL =
+  `${WORKER_BASE}/transactions`;
+
+const WEBSITE_URL =
   "https://inmeenax.github.io/wallet/";
 
-const CALLBACK_URL =
-  "https://watchpays-api1.moxoga3282.workers.dev/callback";
+const MIN_AMOUNT = 1;
+const MAX_AMOUNT = 100000;
 
-const ALLOWED_ORIGIN =
-  "https://inmeenax.github.io";
+const walletPage = document.getElementById("walletPage");
+const paymentLoading = document.getElementById("paymentLoading");
 
+const amountInput = document.getElementById("amountInput");
+const linkForm = document.getElementById("linkForm");
 
-export default {
+const generatedLinkBox =
+  document.getElementById("generatedLinkBox");
 
-  async fetch(request, env) {
+const generatedLinkText =
+  document.getElementById("generatedLinkText");
 
-    const url =
-      new URL(request.url);
+const copyGeneratedLink =
+  document.getElementById("copyGeneratedLink");
 
-    const path =
-      url.pathname;
+const copyMessage =
+  document.getElementById("copyMessage");
 
+const totalBalance =
+  document.getElementById("totalBalance");
 
-    /* -----------------------------
-       CORS
-    ----------------------------- */
+const successCount =
+  document.getElementById("successCount");
 
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
-      "Access-Control-Allow-Methods":
-        "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers":
-        "Content-Type",
-      "Cache-Control": "no-store"
-    };
+const transactionCount =
+  document.getElementById("transactionCount");
 
+const transactionsList =
+  document.getElementById("transactionsList");
 
-    if (request.method === "OPTIONS") {
+const refreshButton =
+  document.getElementById("refreshButton");
 
-      return new Response(null, {
-        status: 204,
-        headers: corsHeaders
-      });
-    }
+const lastUpdated =
+  document.getElementById("lastUpdated");
 
+const loadingAmount =
+  document.getElementById("loadingAmount");
 
-    try {
+const loadingTitle =
+  document.getElementById("loadingTitle");
 
-      /*
-       * CREATE PAYMENT
-       */
-      if (
-        path === "/create-payment" &&
-        request.method === "POST"
-      ) {
+const loadingText =
+  document.getElementById("loadingText");
 
-        return await createPayment(
-          request,
-          env,
-          corsHeaders
-        );
-      }
+const progressBar =
+  document.getElementById("progressBar");
 
+const loadingError =
+  document.getElementById("loadingError");
 
-      /*
-       * WATCHPAYS CALLBACK
-       */
-      if (
-        path === "/callback" &&
-        request.method === "POST"
-      ) {
+const loadingBackButton =
+  document.getElementById("loadingBackButton");
 
-        return await handleCallback(
-          request,
-          env
-        );
-      }
-
-
-      /*
-       * TRANSACTION LIST
-       */
-      if (
-        path === "/transactions" &&
-        request.method === "GET"
-      ) {
-
-        return await getTransactions(
-          env,
-          corsHeaders
-        );
-      }
-
-
-      /*
-       * HEALTH CHECK
-       */
-      if (
-        path === "/" &&
-        request.method === "GET"
-      ) {
-
-        return json(
-          {
-            success: true,
-            service: "watchpays-api1",
-            status: "online"
-          },
-          200,
-          corsHeaders
-        );
-      }
-
-
-      return json(
-        {
-          success: false,
-          error: "Not found"
-        },
-        404,
-        corsHeaders
-      );
-
-
-    } catch (error) {
-
-      console.error(
-        "Worker error:",
-        error
-      );
-
-      return json(
-        {
-          success: false,
-          error:
-            error instanceof Error
-              ? error.message
-              : "Internal server error"
-        },
-        500,
-        corsHeaders
-      );
-    }
-  }
+const loadingSteps = {
+  1: document.getElementById("step1"),
+  2: document.getElementById("step2"),
+  3: document.getElementById("step3")
 };
 
 
-/* =================================
+/* -----------------------------
+   HELPERS
+----------------------------- */
+
+function formatMoney(value) {
+  const number = Number(value) || 0;
+
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(number);
+}
+
+
+function formatDateTime(value) {
+  if (!value) {
+    return "Time unavailable";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Time unavailable";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true
+  }).format(date);
+}
+
+
+function normalizeAmount(value) {
+  const number = Number(value);
+
+  if (!Number.isFinite(number)) {
+    return null;
+  }
+
+  if (number < MIN_AMOUNT || number > MAX_AMOUNT) {
+    return null;
+  }
+
+  return number.toFixed(2);
+}
+
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+
+/* -----------------------------
+   LOADING UI
+----------------------------- */
+
+function showLoading(amount) {
+  walletPage.classList.add("hidden");
+  paymentLoading.classList.remove("hidden");
+
+  loadingError.classList.add("hidden");
+  loadingBackButton.classList.add("hidden");
+
+  loadingTitle.textContent =
+    "Preparing your payment";
+
+  loadingText.textContent =
+    "Creating a secure payment request...";
+
+  loadingAmount.textContent =
+    formatMoney(amount);
+
+  progressBar.style.width = "18%";
+
+  setLoadingStep(1);
+}
+
+
+function setLoadingStep(step) {
+
+  Object.values(loadingSteps).forEach((element) => {
+    element.classList.remove("active");
+    element.classList.remove("done");
+  });
+
+  for (let i = 1; i < step; i++) {
+    loadingSteps[i].classList.add("done");
+  }
+
+  loadingSteps[step].classList.add("active");
+
+  const progress = {
+    1: 20,
+    2: 58,
+    3: 90
+  };
+
+  progressBar.style.width =
+    `${progress[step]}%`;
+
+  if (step === 1) {
+    loadingText.textContent =
+      "Creating a secure payment request...";
+  }
+
+  if (step === 2) {
+    loadingText.textContent =
+      "Connecting to WatchPays gateway...";
+  }
+
+  if (step === 3) {
+    loadingText.textContent =
+      "Payment gateway is ready. Redirecting...";
+  }
+}
+
+
+function showLoadingError(message) {
+
+  loadingTitle.textContent =
+    "Payment could not be created";
+
+  loadingText.textContent =
+    "Please check the details and try again.";
+
+  loadingError.textContent =
+    message || "Something went wrong.";
+
+  loadingError.classList.remove("hidden");
+
+  loadingBackButton.classList.remove("hidden");
+
+  progressBar.style.width = "100%";
+
+  Object.values(loadingSteps).forEach((element) => {
+    element.classList.remove("active");
+  });
+}
+
+
+/* -----------------------------
    CREATE PAYMENT
-================================= */
+----------------------------- */
 
-async function createPayment(
-  request,
-  env,
-  corsHeaders
-) {
+async function createPayment(amount) {
 
-  if (!env.PAYMENTS_KV) {
+  const normalizedAmount =
+    normalizeAmount(amount);
 
-    return json(
-      {
-        success: false,
-        error:
-          "PAYMENTS_KV binding is missing."
-      },
-      500,
-      corsHeaders
+  if (!normalizedAmount) {
+    showLoadingError(
+      `Amount must be between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT}.`
     );
+    return;
   }
 
-
-  if (
-    !env.MERCHANT_ID ||
-    !env.WATCHPAYS_API_KEY
-  ) {
-
-    return json(
-      {
-        success: false,
-        error:
-          "WatchPays environment variables are missing."
-      },
-      500,
-      corsHeaders
-    );
-  }
-
-
-  let body;
+  showLoading(normalizedAmount);
 
   try {
 
-    body =
-      await request.json();
-
-  } catch {
-
-    return json(
+    const response = await fetch(
+      CREATE_PAYMENT_URL,
       {
-        success: false,
-        error: "Invalid JSON body."
-      },
-      400,
-      corsHeaders
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          amount: Number(normalizedAmount)
+        })
+      }
     );
-  }
 
+    let data;
 
-  const amountNumber =
-    Number(body.amount);
-
-
-  /*
-   * Amount validation.
-   *
-   * The frontend can create custom
-   * amounts. This range can be
-   * changed if WatchPays has a
-   * different merchant limit.
-   */
-
-  if (
-    !Number.isFinite(amountNumber) ||
-    amountNumber < 1 ||
-    amountNumber > 100000
-  ) {
-
-    return json(
-      {
-        success: false,
-        error:
-          "Invalid amount. Amount must be between 1 and 100000."
-      },
-      400,
-      corsHeaders
-    );
-  }
-
-
-  const amount =
-    amountNumber.toFixed(2);
-
-
-  /*
-   * Our unique order number.
-   */
-
-  const merchantOrderNo =
-    "ORD_" +
-    Date.now() +
-    "_" +
-    crypto.randomUUID()
-      .replaceAll("-", "")
-      .slice(0, 10);
-
-
-  /*
-   * Save PENDING record BEFORE
-   * calling WatchPays.
-   *
-   * This gives us an internal
-   * record for this payment.
-   */
-
-  const pendingRecord = {
-
-    merchantOrderNo,
-
-    watchpaysOrderNo: null,
-
-    amount,
-
-    status: "PENDING",
-
-    createdAt:
-      new Date().toISOString(),
-
-    updatedAt:
-      new Date().toISOString(),
-
-    successAt: null,
-
-    processed: false,
-
-    source: "wallet"
-
-  };
-
-
-  await env.PAYMENTS_KV.put(
-    `payment:${merchantOrderNo}`,
-    JSON.stringify(pendingRecord)
-  );
-
-
-  /*
-   * WatchPays signature parameters.
-   *
-   * REQUIRED ORDER:
-   *
-   * amount
-   * callback_url
-   * merchant_id
-   * merchant_order_no
-   */
-
-  const params = {
-
-    merchant_id:
-      env.MERCHANT_ID,
-
-    amount,
-
-    merchant_order_no:
-      merchantOrderNo,
-
-    callback_url:
-      CALLBACK_URL
-
-  };
-
-
-  const sortedKeys =
-    Object.keys(params).sort();
-
-
-  let signString = "";
-
-
-  for (const key of sortedKeys) {
-
-    const value =
-      params[key];
+    try {
+      data = await response.json();
+    } catch {
+      throw new Error(
+        "Worker returned an invalid response."
+      );
+    }
 
     if (
-      value !== undefined &&
-      value !== null &&
-      value !== ""
+      !response.ok ||
+      !data.success ||
+      !data.payment_url
     ) {
-
-      signString +=
-        `${key}=${value}&`;
-    }
-  }
-
-
-  signString +=
-    `key=${env.WATCHPAYS_API_KEY}`;
-
-
-  const signature =
-    await md5(signString);
-
-
-  /*
-   * WatchPays request.
-   */
-
-  const watchPaysPayload = {
-
-    merchant_id:
-      env.MERCHANT_ID,
-
-    api_key:
-      env.WATCHPAYS_API_KEY,
-
-    amount,
-
-    merchant_order_no:
-      merchantOrderNo,
-
-    callback_url:
-      CALLBACK_URL,
-
-    signature
-
-  };
-
-
-  let watchPaysResponse;
-
-
-  try {
-
-    watchPaysResponse =
-      await fetch(
-        WATCHPAYS_CREATE_URL,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json"
-          },
-
-          body:
-            JSON.stringify(
-              watchPaysPayload
-            )
-        }
+      throw new Error(
+        data.error ||
+        data.message ||
+        "WatchPays payment creation failed."
       );
+    }
+
+    setLoadingStep(2);
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 450)
+    );
+
+    setLoadingStep(3);
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 600)
+    );
+
+    window.location.href =
+      data.payment_url;
 
   } catch (error) {
 
-    await markPaymentFailed(
-      env,
-      merchantOrderNo,
-      error instanceof Error
-        ? error.message
-        : "WatchPays connection failed"
+    console.error(
+      "Payment creation error:",
+      error
     );
 
-    return json(
-      {
-        success: false,
-        error:
-          "Could not connect to WatchPays."
-      },
-      502,
-      corsHeaders
+    showLoadingError(
+      error.message ||
+      "Unable to create payment."
     );
   }
-
-
-  let data;
-
-
-  try {
-
-    data =
-      await watchPaysResponse.json();
-
-  } catch {
-
-    await markPaymentFailed(
-      env,
-      merchantOrderNo,
-      "Invalid WatchPays response"
-    );
-
-    return json(
-      {
-        success: false,
-        error:
-          "WatchPays returned an invalid response."
-      },
-      502,
-      corsHeaders
-    );
-  }
-
-
-  /*
-   * WatchPays rejected order.
-   */
-
-  if (
-    !watchPaysResponse.ok ||
-    !data.success ||
-    !data.payment_url
-  ) {
-
-    await markPaymentFailed(
-      env,
-      merchantOrderNo,
-      data.error ||
-      data.message ||
-      "WatchPays rejected the payment."
-    );
-
-
-    return json(
-      {
-        success: false,
-
-        error:
-          data.error ||
-          data.message ||
-          "WatchPays payment creation failed.",
-
-        merchant_order_no:
-          merchantOrderNo
-      },
-      400,
-      corsHeaders
-    );
-  }
-
-
-  /*
-   * WatchPays success.
-   *
-   * Save gateway order number.
-   */
-
-  const watchpaysOrderNo =
-    data.order_no || null;
-
-
-  const updatedRecord = {
-
-    ...pendingRecord,
-
-    watchpaysOrderNo,
-
-    status: "PENDING",
-
-    updatedAt:
-      new Date().toISOString(),
-
-    watchpaysStatus:
-      data.status || "created",
-
-    paymentUrl:
-      data.payment_url
-
-  };
-
-
-  await env.PAYMENTS_KV.put(
-    `payment:${merchantOrderNo}`,
-    JSON.stringify(updatedRecord)
-  );
-
-
-  /*
-   * Return only what frontend
-   * needs.
-   *
-   * API key is NEVER returned.
-   */
-
-  return json(
-    {
-      success: true,
-
-      merchant_order_no:
-        merchantOrderNo,
-
-      order_no:
-        watchpaysOrderNo,
-
-      amount,
-
-      payment_url:
-        data.payment_url,
-
-      status:
-        data.status || "created"
-
-    },
-    200,
-    corsHeaders
-  );
 }
 
 
-/* =================================
-   WATCHPAYS CALLBACK
-================================= */
+/* -----------------------------
+   GENERATE LINK
+----------------------------- */
 
-async function handleCallback(
-  request,
-  env
-) {
+function generatePaymentLink(amount) {
 
-  if (!env.PAYMENTS_KV) {
+  const normalizedAmount =
+    normalizeAmount(amount);
 
-    return new Response(
-      "storage_error",
-      {
-        status: 500
-      }
-    );
+  if (!normalizedAmount) {
+    return;
   }
 
-
-  let body;
-
-
-  try {
-
-    body =
-      await request.json();
-
-  } catch {
-
-    return new Response(
-      "invalid_json",
-      {
-        status: 400
-      }
-    );
-  }
-
-
-  /*
-   * WatchPays callback:
-   *
-   * {
-   *   orderNo: "...",
-   *   merchantOrder: "...",
-   *   status: "success",
-   *   amount: 1000
-   * }
-   */
-
-
-  const merchantOrder =
-    String(
-      body.merchantOrder || ""
-    ).trim();
-
-
-  const gatewayOrder =
-    String(
-      body.orderNo || ""
-    ).trim();
-
-
-  const callbackStatus =
-    String(
-      body.status || ""
-    ).trim()
-      .toLowerCase();
-
-
-  const callbackAmount =
-    Number(body.amount);
-
-
-  if (
-    !merchantOrder ||
-    !gatewayOrder ||
-    !Number.isFinite(callbackAmount)
-  ) {
-
-    return new Response(
-      "invalid_callback",
-      {
-        status: 400
-      }
-    );
-  }
-
-
-  /*
-   * Find our original order.
-   */
-
-  const key =
-    `payment:${merchantOrder}`;
-
-
-  const existing =
-    await env.PAYMENTS_KV.get(
-      key,
-      "json"
-    );
-
-
-  if (!existing) {
-
-    return new Response(
-      "order_not_found",
-      {
-        status: 404
-      }
-    );
-  }
-
-
-  /*
-   * Verify amount exactly.
-   */
-
-  const originalAmount =
-    Number(existing.amount);
-
-
-  if (
-    !Number.isFinite(originalAmount) ||
-    originalAmount !== callbackAmount
-  ) {
-
-    console.error(
-      "Amount mismatch:",
-      {
-        merchantOrder,
-        originalAmount,
-        callbackAmount
-      }
-    );
-
-
-    return new Response(
-      "amount_mismatch",
-      {
-        status: 400
-      }
-    );
-  }
-
-
-  /*
-   * Verify WatchPays gateway order.
-   */
-
-  if (
-    existing.watchpaysOrderNo &&
-    String(
-      existing.watchpaysOrderNo
-    ) !== gatewayOrder
-  ) {
-
-    console.error(
-      "Gateway order mismatch:",
-      {
-        merchantOrder,
-        saved:
-          existing.watchpaysOrderNo,
-        callback:
-          gatewayOrder
-      }
-    );
-
-
-    return new Response(
-      "order_mismatch",
-      {
-        status: 400
-      }
-    );
-  }
-
-
-  /*
-   * Ignore duplicate success.
-   */
-
-  if (
-    existing.status === "SUCCESS" &&
-    existing.processed === true
-  ) {
-
-    return new Response(
-      "success",
-      {
-        status: 200
-      }
-    );
-  }
-
-
-  /*
-   * WatchPays documentation says
-   * successful callback should be
-   * marked successful.
-   *
-   * Non-success callback remains
-   * pending unless it explicitly
-   * says failed.
-   */
-
-  if (
-    callbackStatus !== "success"
-  ) {
-
-    const pendingUpdate = {
-
-      ...existing,
-
-      watchpaysOrderNo:
-        gatewayOrder,
-
-      status:
-        callbackStatus === "failed"
-          ? "FAILED"
-          : "PENDING",
-
-      updatedAt:
-        new Date().toISOString()
-
-    };
-
-
-    await env.PAYMENTS_KV.put(
-      key,
-      JSON.stringify(
-        pendingUpdate
-      )
-    );
-
-
-    return new Response(
-      "success",
-      {
-        status: 200
-      }
-    );
-  }
-
-
-  /*
-   * SUCCESS
-   *
-   * This is the point at which
-   * the amount becomes part of
-   * the successful wallet total.
-   */
-
-  const successRecord = {
-
-    ...existing,
-
-    merchantOrderNo:
-      merchantOrder,
-
-    watchpaysOrderNo:
-      gatewayOrder,
-
-    amount:
-      Number(originalAmount)
-        .toFixed(2),
-
-    status:
-      "SUCCESS",
-
-    processed:
-      true,
-
-    successAt:
-      new Date().toISOString(),
-
-    updatedAt:
-      new Date().toISOString()
-
-  };
-
-
-  await env.PAYMENTS_KV.put(
-    key,
-    JSON.stringify(
-      successRecord
-    )
+  const link =
+    `${WEBSITE_URL}?amount=${encodeURIComponent(
+      Number(normalizedAmount)
+    )}`;
+
+  generatedLinkText.textContent =
+    link;
+
+  generatedLinkBox.classList.remove(
+    "hidden"
   );
 
+  copyMessage.textContent = "";
 
-  /*
-   * WatchPays expects "success".
-   */
+  generatedLinkBox.scrollIntoView({
+    behavior: "smooth",
+    block: "nearest"
+  });
+}
 
-  return new Response(
-    "success",
-    {
-      status: 200
+
+linkForm.addEventListener(
+  "submit",
+  (event) => {
+
+    event.preventDefault();
+
+    const amount =
+      amountInput.value.trim();
+
+    const normalized =
+      normalizeAmount(amount);
+
+    if (!normalized) {
+
+      amountInput.focus();
+
+      amountInput.setCustomValidity(
+        `Enter an amount between ₹${MIN_AMOUNT} and ₹${MAX_AMOUNT}.`
+      );
+
+      amountInput.reportValidity();
+
+      return;
     }
-  );
-}
 
+    amountInput.setCustomValidity("");
 
-/* =================================
-   TRANSACTIONS API
-================================= */
-
-async function getTransactions(
-  env,
-  corsHeaders
-) {
-
-  if (!env.PAYMENTS_KV) {
-
-    return json(
-      {
-        success: false,
-        error:
-          "PAYMENTS_KV binding is missing."
-      },
-      500,
-      corsHeaders
-    );
+    generatePaymentLink(normalized);
   }
+);
 
 
-  const transactions = [];
+copyGeneratedLink.addEventListener(
+  "click",
+  async () => {
 
-  let cursor;
+    const link =
+      generatedLinkText.textContent;
 
+    if (!link || link === "—") {
+      return;
+    }
 
-  /*
-   * KV list supports prefix and
-   * pagination.
-   */
+    try {
 
-  do {
+      await navigator.clipboard.writeText(link);
 
-    const result =
-      await env.PAYMENTS_KV.list({
-        prefix: "payment:",
-        limit: 1000,
-        ...(cursor
-          ? { cursor }
-          : {})
-      });
+      copyMessage.textContent =
+        "✓ Payment link copied.";
 
+      copyGeneratedLink.textContent =
+        "Copied";
 
-    const keys =
-      result.keys || [];
+      setTimeout(() => {
+        copyGeneratedLink.textContent =
+          "Copy";
+      }, 1400);
 
+    } catch {
 
-    /*
-     * KV get supports up to 100
-     * keys in one multi-get.
-     */
-
-    for (
-      let i = 0;
-      i < keys.length;
-      i += 100
-    ) {
-
-      const batch =
-        keys.slice(
-          i,
-          i + 100
-        );
+      copyMessage.textContent =
+        "Copy failed. Please copy the link manually.";
+    }
+  }
+);
 
 
-      const values =
-        await env.PAYMENTS_KV.get(
-          batch.map(
-            key => key.name
-          ),
-          "json"
-        );
+/* -----------------------------
+   QUICK PAYMENTS
+----------------------------- */
+
+document
+  .querySelectorAll(".quick-amount")
+  .forEach(button => {
+
+    button.addEventListener(
+      "click",
+      () => {
+
+        const amount =
+          button.dataset.amount;
+
+        createPayment(amount);
+      }
+    );
+
+  });
 
 
-      for (const key of batch) {
+/* -----------------------------
+   TRANSACTIONS
+----------------------------- */
 
-        const value =
-          values.get(key.name);
+async function loadTransactions() {
 
+  try {
 
-        if (value) {
-          transactions.push(value);
+    const response =
+      await fetch(
+        TRANSACTIONS_URL,
+        {
+          method: "GET",
+          cache: "no-store"
         }
-      }
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        "Could not load transactions."
+      );
     }
 
+    const data =
+      await response.json();
 
-    cursor =
-      result.list_complete
-        ? undefined
-        : result.cursor;
-
-  } while (cursor);
-
-
-  /*
-   * Newest first.
-   */
-
-  transactions.sort(
-    (a, b) => {
-
-      const aTime =
-        new Date(
-          a.createdAt || 0
-        ).getTime();
-
-      const bTime =
-        new Date(
-          b.createdAt || 0
-        ).getTime();
-
-      return bTime - aTime;
+    if (!data.success) {
+      throw new Error(
+        data.error ||
+        "Could not load transactions."
+      );
     }
-  );
+
+    renderTransactions(
+      data.transactions || []
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Transaction loading error:",
+      error
+    );
+
+  } finally {
+
+    lastUpdated.textContent =
+      "Updated " +
+      new Intl.DateTimeFormat("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      }).format(new Date());
+  }
+}
 
 
-  /*
-   * Keep response reasonably
-   * sized for the dashboard.
-   */
-
-  const visibleTransactions =
-    transactions.slice(0, 200);
-
+function renderTransactions(
+  transactions
+) {
 
   let balance = 0;
+  let successful = 0;
 
-
-  for (
-    const transaction
-    of visibleTransactions
-  ) {
+  transactions.forEach(transaction => {
 
     if (
-      transaction.status === "SUCCESS"
+      String(transaction.status)
+        .toLowerCase() === "success"
     ) {
 
       balance +=
         Number(transaction.amount) || 0;
+
+      successful++;
     }
-  }
+  });
 
+  totalBalance.textContent =
+    formatMoney(balance);
 
-  return json(
-    {
-      success: true,
+  successCount.textContent =
+    `${successful} successful payment${
+      successful === 1 ? "" : "s"
+    }`;
 
-      totalBalance:
-        balance.toFixed(2),
+  transactionCount.textContent =
+    transactions.length;
 
-      transactions:
-        visibleTransactions
+  if (!transactions.length) {
 
-    },
-    200,
-    corsHeaders
-  );
-}
+    transactionsList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">₹</div>
+        <h3>No transactions yet</h3>
+        <p>
+          Payments created from this wallet
+          will appear here.
+        </p>
+      </div>
+    `;
 
-
-/* =================================
-   FAILED PAYMENT
-================================= */
-
-async function markPaymentFailed(
-  env,
-  merchantOrderNo,
-  reason
-) {
-
-  const key =
-    `payment:${merchantOrderNo}`;
-
-
-  const existing =
-    await env.PAYMENTS_KV.get(
-      key,
-      "json"
-    );
-
-
-  if (!existing) {
     return;
   }
 
+  transactionsList.innerHTML =
+    transactions
+      .map(transaction => {
 
-  const updated = {
+        const status =
+          String(
+            transaction.status || "pending"
+          ).toLowerCase();
 
-    ...existing,
+        const safeStatus =
+          ["success", "pending", "failed"]
+            .includes(status)
+            ? status
+            : "pending";
 
-    status:
-      "FAILED",
+        const icon =
+          safeStatus === "success"
+            ? "✓"
+            : safeStatus === "failed"
+              ? "!"
+              : "•";
 
-    error:
-      reason,
+        const statusText =
+          safeStatus.toUpperCase();
 
-    updatedAt:
-      new Date().toISOString()
+        const displayTime =
+          safeStatus === "success" &&
+          transaction.successAt
+            ? transaction.successAt
+            : transaction.createdAt;
 
-  };
+        const order =
+          transaction.merchantOrderNo ||
+          "Order unavailable";
 
+        return `
+          <article class="transaction">
 
-  await env.PAYMENTS_KV.put(
-    key,
-    JSON.stringify(updated)
-  );
+            <div class="transaction-icon ${safeStatus}">
+              ${icon}
+            </div>
+
+            <div class="transaction-main">
+
+              <div class="transaction-top">
+
+                <div class="transaction-amount">
+                  ${escapeHtml(
+                    formatMoney(transaction.amount)
+                  )}
+                </div>
+
+                <div class="transaction-status ${safeStatus}">
+                  ${statusText}
+                </div>
+
+              </div>
+
+              <div class="transaction-time">
+                ${escapeHtml(
+                  formatDateTime(displayTime)
+                )}
+              </div>
+
+              <div class="transaction-order">
+                ${escapeHtml(order)}
+              </div>
+
+            </div>
+
+          </article>
+        `;
+      })
+      .join("");
 }
 
 
-/* =================================
-   JSON RESPONSE
-================================= */
+/* -----------------------------
+   REFRESH / POLLING
+----------------------------- */
 
-function json(
-  data,
-  status = 200,
-  extraHeaders = {}
-) {
+refreshButton.addEventListener(
+  "click",
+  async () => {
 
-  return new Response(
-    JSON.stringify(data),
-    {
-      status,
+    refreshButton.style.transform =
+      "rotate(360deg)";
 
-      headers: {
-        "Content-Type":
-          "application/json; charset=UTF-8",
+    await loadTransactions();
 
-        ...extraHeaders
-      }
-    }
-  );
-}
+    setTimeout(() => {
+      refreshButton.style.transform = "";
+    }, 300);
+  }
+);
 
 
-/* =================================
-   MD5
-================================= */
-
-async function md5(
-  text
-) {
-
-  const data =
-    new TextEncoder().encode(text);
+// Refresh every 5 seconds so pending
+// payments can change to SUCCESS.
+setInterval(
+  loadTransactions,
+  5000
+);
 
 
-  const hashBuffer =
-    await crypto.subtle.digest(
-      "MD5",
-      data
+/* -----------------------------
+   DIRECT PAYMENT LINK
+----------------------------- */
+
+function checkDirectPayment() {
+
+  const params =
+    new URLSearchParams(
+      window.location.search
     );
 
+  const amount =
+    params.get("amount");
 
-  const hashArray =
-    Array.from(
-      new Uint8Array(hashBuffer)
+  if (!amount) {
+    return false;
+  }
+
+  const normalized =
+    normalizeAmount(amount);
+
+  if (!normalized) {
+
+    showLoading(amount);
+
+    showLoadingError(
+      `Invalid payment amount. Use ₹${MIN_AMOUNT} to ₹${MAX_AMOUNT}.`
     );
 
+    return true;
+  }
 
-  return hashArray
-    .map(
-      byte =>
-        byte
-          .toString(16)
-          .padStart(2, "0")
-    )
-    .join("");
+  createPayment(normalized);
+
+  return true;
 }
+
+
+/* -----------------------------
+   BACK BUTTON
+----------------------------- */
+
+loadingBackButton.addEventListener(
+  "click",
+  () => {
+
+    paymentLoading.classList.add(
+      "hidden"
+    );
+
+    walletPage.classList.remove(
+      "hidden"
+    );
+
+    history.replaceState(
+      {},
+      document.title,
+      WEBSITE_URL
+    );
+
+    loadTransactions();
+  }
+);
+
+
+/* -----------------------------
+   START
+----------------------------- */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    loadTransactions();
+
+    checkDirectPayment();
+
+  }
+);
